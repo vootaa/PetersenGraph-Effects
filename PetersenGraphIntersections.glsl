@@ -1,5 +1,5 @@
 // PetersenGraphIntersections.glsl - Visualization of PetersenGraph with intersection points
-// Calculates intersection points once and stores them for rendering
+// Uses pre-calculated node positions and intersection points for better performance
 
 // Angles for node positioning (in radians)
 const float ANGLES[20] = float[20](
@@ -13,6 +13,33 @@ const float ANGLES[20] = float[20](
 const float INNER_RADIUS = 0.15;
 const float MIDDLE_RADIUS = 0.3;
 const float OUTER_RADIUS = 0.48;
+
+// Pre-calculated node positions
+const vec2 NODE_POSITIONS[20] = vec2[20](
+    // Middle circle nodes (0-4)
+    vec2(MIDDLE_RADIUS * cos(5.0265), MIDDLE_RADIUS * sin(5.0265)),
+    vec2(MIDDLE_RADIUS * cos(0.0), MIDDLE_RADIUS * sin(0.0)),
+    vec2(MIDDLE_RADIUS * cos(1.2566), MIDDLE_RADIUS * sin(1.2566)),
+    vec2(MIDDLE_RADIUS * cos(2.5133), MIDDLE_RADIUS * sin(2.5133)),
+    vec2(MIDDLE_RADIUS * cos(3.7699), MIDDLE_RADIUS * sin(3.7699)),
+    // Inner circle nodes (5-9)
+    vec2(INNER_RADIUS * cos(5.0265), INNER_RADIUS * sin(5.0265)),
+    vec2(INNER_RADIUS * cos(0.0), INNER_RADIUS * sin(0.0)),
+    vec2(INNER_RADIUS * cos(1.2566), INNER_RADIUS * sin(1.2566)),
+    vec2(INNER_RADIUS * cos(2.5133), INNER_RADIUS * sin(2.5133)),
+    vec2(INNER_RADIUS * cos(3.7699), INNER_RADIUS * sin(3.7699)),
+    // Outer circle nodes (10-19)
+    vec2(OUTER_RADIUS * cos(4.8521), OUTER_RADIUS * sin(4.8521)),
+    vec2(OUTER_RADIUS * cos(0.1745), OUTER_RADIUS * sin(0.1745)),
+    vec2(OUTER_RADIUS * cos(1.0821), OUTER_RADIUS * sin(1.0821)),
+    vec2(OUTER_RADIUS * cos(2.6878), OUTER_RADIUS * sin(2.6878)),
+    vec2(OUTER_RADIUS * cos(3.5954), OUTER_RADIUS * sin(3.5954)),
+    vec2(OUTER_RADIUS * cos(5.2009), OUTER_RADIUS * sin(5.2009)),
+    vec2(OUTER_RADIUS * cos(6.1087), OUTER_RADIUS * sin(6.1087)),
+    vec2(OUTER_RADIUS * cos(1.4312), OUTER_RADIUS * sin(1.4312)),
+    vec2(OUTER_RADIUS * cos(2.3387), OUTER_RADIUS * sin(2.3387)),
+    vec2(OUTER_RADIUS * cos(3.9444), OUTER_RADIUS * sin(3.9444))
+);
 
 // Connection lookup table (from, to)
 const ivec2 CONNECTIONS[30] = ivec2[30](
@@ -41,20 +68,11 @@ const int CONN_TYPE[30] = int[30](
 vec2 intersectionPoints[20];
 int intersectionTypes[20];
 int intersectionCount = 0;
+bool intersectionsCalculated = false;
 
-// Get node position based on chainId
+// Get pre-calculated node position based on chainId
 vec2 getNodePosition(int chainId) {
-    float angle = ANGLES[chainId];
-    float radius;
-
-    if(chainId < 5)
-        radius = MIDDLE_RADIUS;
-    else if(chainId < 10)
-        radius = INNER_RADIUS;
-    else
-        radius = OUTER_RADIUS;
-
-    return vec2(radius * cos(angle), radius * sin(angle));
+    return NODE_POSITIONS[chainId];
 }
 
 // Matrix for rotations
@@ -80,10 +98,10 @@ bool lineIntersection(vec2 p1, vec2 p2, vec2 p3, vec2 p4, inout vec2 intersectio
     // Check if intersection is STRICTLY within both line segments
     // Exclude endpoints to avoid node intersections
     float tolerance = 0.05; // Minimum distance from endpoints
-    if(t1 > tolerance && t1 < (1.0 - tolerance) &&
-        t2 > tolerance && t2 < (1.0 - tolerance)) {
+    if(t1 > tolerance && t1 < (1.0 - tolerance) && 
+       t2 > tolerance && t2 < (1.0 - tolerance)) {
         intersection = p1 + t1 * dir1;
-
+        
         // Additional check: ensure intersection is not too close to any node
         for(int nodeId = 0; nodeId < 20; nodeId++) {
             vec2 nodePos = getNodePosition(nodeId);
@@ -91,27 +109,29 @@ bool lineIntersection(vec2 p1, vec2 p2, vec2 p3, vec2 p4, inout vec2 intersectio
                 return false; // Too close to a node
             }
         }
-
+        
         return true;
     }
     return false;
 }
 
-// Calculate all intersection points
+// Calculate all intersection points (only once)
 void calculateIntersections() {
+    if(intersectionsCalculated) return;
+    
     intersectionCount = 0;
 
     // Use the actual line intersection algorithm to find all intersections
     for(int i = 0; i < 30; i++) {
         for(int j = i + 1; j < 30; j++) {
             // Skip if the two connections share a common node
-            if(CONNECTIONS[i].x == CONNECTIONS[j].x ||
-                CONNECTIONS[i].x == CONNECTIONS[j].y ||
-                CONNECTIONS[i].y == CONNECTIONS[j].x ||
-                CONNECTIONS[i].y == CONNECTIONS[j].y) {
+            if(CONNECTIONS[i].x == CONNECTIONS[j].x || 
+               CONNECTIONS[i].x == CONNECTIONS[j].y ||
+               CONNECTIONS[i].y == CONNECTIONS[j].x || 
+               CONNECTIONS[i].y == CONNECTIONS[j].y) {
                 continue; // Skip connections that share nodes
             }
-
+            
             vec2 p1 = getNodePosition(CONNECTIONS[i].x);
             vec2 p2 = getNodePosition(CONNECTIONS[i].y);
             vec2 p3 = getNodePosition(CONNECTIONS[j].x);
@@ -143,6 +163,8 @@ void calculateIntersections() {
             }
         }
     }
+    
+    intersectionsCalculated = true;
 }
 
 // Draw a simple circle node
@@ -161,7 +183,7 @@ vec4 drawSimpleNode(vec2 uv, vec2 pos, int chainId) {
 
     // Simple circle with smooth edge
     float circle = smoothstep(nodeSize, nodeSize * 0.7, dist);
-
+    
     return vec4(nodeBaseColor, circle);
 }
 
@@ -173,31 +195,21 @@ vec4 drawIntersectionPoint(vec2 uv, vec2 pos, int index, int type) {
     // Color based on intersection type
     vec3 pointColor;
     switch(type) {
-        case 0:
-            pointColor = vec3(1.0, 1.0, 0.5);
-            break; // Inner yellow intersections - bright yellow
-        case 1:
-            pointColor = vec3(1.0, 0.5, 1.0);
-            break; // Outer magenta intersections - bright magenta
-        case 2:
-            pointColor = vec3(0.5, 1.0, 0.5);
-            break; // Magenta-Green intersections - bright green
-        case 3:
-            pointColor = vec3(0.5, 0.7, 1.0);
-            break; // Magenta-Blue intersections - bright blue
-        default:
-            pointColor = vec3(1.0, 1.0, 1.0);
-            break; // Other - white
+        case 0: pointColor = vec3(1.0, 1.0, 0.5); break; // Inner yellow intersections - bright yellow
+        case 1: pointColor = vec3(1.0, 0.5, 1.0); break; // Outer magenta intersections - bright magenta
+        case 2: pointColor = vec3(0.5, 1.0, 0.5); break; // Magenta-Green intersections - bright green
+        case 3: pointColor = vec3(0.5, 0.7, 1.0); break; // Magenta-Blue intersections - bright blue
+        default: pointColor = vec3(1.0, 1.0, 1.0); break; // Other - white
     }
 
     // Draw intersection point as a small circle
     float circle = smoothstep(pointSize, pointSize * 0.6, dist);
-
+    
     // Add a thin border
     float border = smoothstep(pointSize * 1.2, pointSize, dist) - circle;
     vec3 finalColor = mix(vec3(0.0), pointColor, circle) + vec3(1.0) * border * 0.5;
     float alpha = max(circle, border * 0.5);
-
+    
     return vec4(finalColor, alpha);
 }
 
@@ -245,14 +257,14 @@ vec4 drawSimpleLine(vec2 uv, vec2 p1, vec2 p2, int connType) {
 
     // Draw line with smooth edges
     float line = smoothstep(lineWidth, lineWidth * 0.5, perpLine);
-
+    
     return vec4(lineColor, line * 0.8);
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    // Calculate intersections once at the beginning
+    // Calculate intersections only once
     calculateIntersections();
-
+    
     // Background color - darker for contrast
     vec4 backgroundColor = vec4(0.05, 0.05, 0.08, 1.0);
 
