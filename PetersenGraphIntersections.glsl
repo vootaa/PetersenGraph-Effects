@@ -1,5 +1,5 @@
 // PetersenGraphIntersections.glsl - Visualization of PetersenGraph with intersection points
-// Calculates and displays all 20 intersection points with labels
+// Calculates intersection points once and stores them for rendering
 
 // Angles for node positioning (in radians)
 const float ANGLES[20] = float[20](
@@ -37,9 +37,10 @@ const int CONN_TYPE[30] = int[30](
 4, 4, 4, 4, 4, 4, 4, 4, 4, 4  // Outer circle
 );
 
-// Storage for intersection points
+// Storage for calculated intersection points
 vec2 intersectionPoints[20];
-int intersectionTypes[20]; // 0=inner yellow, 1=outer magenta, 2=magenta-green, 3=magenta-blue
+int intersectionTypes[20];
+int intersectionCount = 0;
 
 // Get node position based on chainId
 vec2 getNodePosition(int chainId) {
@@ -98,7 +99,7 @@ bool lineIntersection(vec2 p1, vec2 p2, vec2 p3, vec2 p4, inout vec2 intersectio
 
 // Calculate all intersection points
 void calculateIntersections() {
-    int intersectionCount = 0;
+    intersectionCount = 0;
 
     // Use the actual line intersection algorithm to find all intersections
     for(int i = 0; i < 30; i++) {
@@ -160,7 +161,7 @@ vec4 drawSimpleNode(vec2 uv, vec2 pos, int chainId) {
 
     // Simple circle with smooth edge
     float circle = smoothstep(nodeSize, nodeSize * 0.7, dist);
-    
+
     return vec4(nodeBaseColor, circle);
 }
 
@@ -172,21 +173,31 @@ vec4 drawIntersectionPoint(vec2 uv, vec2 pos, int index, int type) {
     // Color based on intersection type
     vec3 pointColor;
     switch(type) {
-        case 0: pointColor = vec3(1.0, 1.0, 0.5); break; // Inner yellow intersections - bright yellow
-        case 1: pointColor = vec3(1.0, 0.5, 1.0); break; // Outer magenta intersections - bright magenta
-        case 2: pointColor = vec3(0.5, 1.0, 0.5); break; // Magenta-Green intersections - bright green
-        case 3: pointColor = vec3(0.5, 0.7, 1.0); break; // Magenta-Blue intersections - bright blue
-        default: pointColor = vec3(1.0, 1.0, 1.0); break; // Other - white
+        case 0:
+            pointColor = vec3(1.0, 1.0, 0.5);
+            break; // Inner yellow intersections - bright yellow
+        case 1:
+            pointColor = vec3(1.0, 0.5, 1.0);
+            break; // Outer magenta intersections - bright magenta
+        case 2:
+            pointColor = vec3(0.5, 1.0, 0.5);
+            break; // Magenta-Green intersections - bright green
+        case 3:
+            pointColor = vec3(0.5, 0.7, 1.0);
+            break; // Magenta-Blue intersections - bright blue
+        default:
+            pointColor = vec3(1.0, 1.0, 1.0);
+            break; // Other - white
     }
 
     // Draw intersection point as a small circle
     float circle = smoothstep(pointSize, pointSize * 0.6, dist);
-    
+
     // Add a thin border
     float border = smoothstep(pointSize * 1.2, pointSize, dist) - circle;
     vec3 finalColor = mix(vec3(0.0), pointColor, circle) + vec3(1.0) * border * 0.5;
     float alpha = max(circle, border * 0.5);
-    
+
     return vec4(finalColor, alpha);
 }
 
@@ -234,14 +245,14 @@ vec4 drawSimpleLine(vec2 uv, vec2 p1, vec2 p2, int connType) {
 
     // Draw line with smooth edges
     float line = smoothstep(lineWidth, lineWidth * 0.5, perpLine);
-    
+
     return vec4(lineColor, line * 0.8);
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
-    // Calculate intersections at the beginning
+    // Calculate intersections once at the beginning
     calculateIntersections();
-    
+
     // Background color - darker for contrast
     vec4 backgroundColor = vec4(0.05, 0.05, 0.08, 1.0);
 
@@ -272,8 +283,8 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
         fragColor.rgb = mix(fragColor.rgb, lineColor.rgb, lineColor.a);
     }
 
-    // 2. Draw intersection points
-    for(int i = 0; i < 20; i++) {
+    // 2. Draw intersection points using calculated data
+    for(int i = 0; i < intersectionCount; i++) {
         vec2 pos = intersectionPoints[i] * rotMat;
         vec4 intersectionColor = drawIntersectionPoint(uv, pos, i, intersectionTypes[i]);
         fragColor.rgb = mix(fragColor.rgb, intersectionColor.rgb, intersectionColor.a);
