@@ -132,28 +132,23 @@ float petersenGraph(vec2 p) {
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
-    
+
     gTime = iTime;
-    
+
     float d = petersenGraph(p);
-    
-    vec3 col = vec3(0.0);
-    
-    // Debug: show distance field first
-    // col = vec3(smoothstep(-0.1, 0.1, d));
-    
+
+    // Start with purple background instead of black
+    vec3 col = vec3(0.25, 0.20, 0.45); // Purple base background
+
     // Sharp edge lines
     float edgeWidth = 0.01;
     float edge = smoothstep(edgeWidth, 0.0, abs(d));
     col += edge * vec3(1.0, 0.9, 0.6);
-    
-    // Solid fill
+
+    // Solid fill - slightly darker purple than background
     float solid = smoothstep(0.005, -0.005, d);
-    col += solid * vec3(0.4, 0.3, 0.8);
-    
-    // Clean background
-    col += vec3(0.02, 0.03, 0.08);
-    
+    col += solid * vec3(0.15, 0.10, 0.35);
+
     fragColor = vec4(col, 1.0);
 }
 
