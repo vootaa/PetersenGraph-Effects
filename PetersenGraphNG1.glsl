@@ -161,7 +161,7 @@ float petersenGraph(vec2 p) {
     p *= rot(gTime * rotSpeed);
     
     // Aggregation factor: 0 = fully dispersed, 1 = fully aggregated
-    float aggregation = sin(gTime * 0.4) * 0.5 + 0.5;
+    float aggregation = sin(gTime * 0.2) * 0.5 + 0.5;
     aggregation = smoothstep(0.0, 1.0, aggregation);
     
     // Dispersion distance
