@@ -1,15 +1,6 @@
 // PetersenGraphIntersections.glsl - Visualization of PetersenGraph with intersection points
 // Uses pre-calculated node positions and intersection points for better performance
 
-// Angles for node positioning (in radians)
-const float ANGLES[20] = float[20](
-    // Middle circle (chainId 0-4) - Evenly distributed on the circle
-5.0265, 0.0, 1.2566, 2.5133, 3.7699,
-    // Inner circle (chainId 5-9) - Corresponding to middle circle angles
-5.0265, 0.0, 1.2566, 2.5133, 3.7699,
-    // Outer circle (chainId 10-19)
-4.8521, 0.1745, 1.0821, 2.6878, 3.5954, 5.2009, 6.1087, 1.4312, 2.3387, 3.9444);
-
 const float INNER_RADIUS = 0.15;
 const float MIDDLE_RADIUS = 0.3;
 const float OUTER_RADIUS = 0.48;
