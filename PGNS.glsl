@@ -65,7 +65,7 @@ float petersenPart(vec2 p) {
     float scale = 2.0;
     p /= scale;
     
-    float shrink = 0.01;
+    float shrink = 0.005;
     
     // P1 Triangle: {(0.060,36),(0.060,324),(0.150,0)}
     vec2 p1a = polar(0.060, radians(36.0));
