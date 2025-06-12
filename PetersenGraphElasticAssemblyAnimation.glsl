@@ -31,6 +31,72 @@ float balancedNeonGlow(float d, float width, float intensity) {
     return width / (abs(d) + width) * intensity;
 }
 
+// Elastic easing function for smooth bouncy animation
+float elasticEaseOut(float t) {
+    if (t <= 0.0) return 0.0;
+    if (t >= 1.0) return 1.0;
+    
+    float p = 0.3;
+    float a = 1.0;
+    float s = p / 4.0;
+    
+    return a * pow(2.0, -10.0 * t) * sin((t - s) * (2.0 * PI) / p) + 1.0;
+}
+
+// Smooth step function for timing
+float smoothProgress(float t, float start, float end) {
+    if (t < start) return 0.0;
+    if (t > end) return 1.0;
+    
+    float progress = (t - start) / (end - start);
+    return smoothstep(0.0, 1.0, progress);
+}
+
+// Calculate elastic rotation angle for each part
+float getElasticAngle(int partIndex, float time) {
+    // Animation cycle duration (total time for one complete cycle)
+    float cycleDuration = 8.0;
+    
+    // Time within current cycle
+    float cycleTime = mod(time, cycleDuration);
+    
+    // Target angle for this part (72 degrees apart)
+    float targetAngle = float(partIndex) * 72.0 * PI / 180.0;
+    
+    // Animation phases:
+    // Phase 1 (0-2s): Parts animate in with elastic motion
+    // Phase 2 (2-6s): Parts stay stable at target position (2/3 of cycle)
+    // Phase 3 (6-8s): Brief transition to next cycle
+    
+    float animationStart = float(partIndex) * 0.2; // Stagger start times
+    float animationEnd = animationStart + 2.0;     // Animation duration
+    float stableStart = 2.0;                       // Stable phase start
+    float stableEnd = 6.0;                         // Stable phase end
+    
+    if (cycleTime < stableStart) {
+        // Animation phase - elastic motion
+        float progress = smoothProgress(cycleTime, animationStart, animationEnd);
+        float elasticProgress = elasticEaseOut(progress);
+        
+        // Add some overshoot and oscillation
+        float overshoot = sin(progress * PI * 3.0) * (1.0 - progress) * 0.3;
+        
+        return targetAngle * (elasticProgress + overshoot);
+    } else if (cycleTime < stableEnd) {
+        // Stable phase - parts hold position
+        return targetAngle;
+    } else {
+        // Transition phase - prepare for next cycle
+        float transitionProgress = (cycleTime - stableEnd) / (cycleDuration - stableEnd);
+        float smoothTransition = smoothstep(0.0, 1.0, transitionProgress);
+        
+        // Add slight breathing motion during transition
+        float breathing = sin(transitionProgress * PI * 2.0) * 0.1;
+        
+        return targetAngle + breathing;
+    }
+}
+
 // Fixed polygon distance field
 float sdPolygon(vec2 p, vec2 vertices[7], int n) {
     float d = dot(p - vertices[0], p - vertices[0]);
@@ -129,21 +195,41 @@ float petersenPart(vec2 p) {
     return min(min(min(min(min(d1, d2), d3), d4), d5), d6);
 }
 
-// Complete Petersen graph
+// Complete Petersen graph with elastic rotation
 float petersenGraph(vec2 p) {
     float d = 1e6;
     
-    // Slow rotation
-    p *= rot(gTime * 0.05);
+    // Global slow rotation
+    p *= rot(gTime * 0.02);
     
-    // 5-fold rotational symmetry
+    // 5-fold rotational symmetry with elastic motion
     for(int i = 0; i < 5; i++) {
-        float angle = float(i) * 72.0 * PI / 180.0;
-        vec2 rotP = p * rot(-angle);
+        // Get elastic angle for this part
+        float elasticAngle = getElasticAngle(i, gTime);
+        
+        // Apply the elastic rotation
+        vec2 rotP = p * rot(-elasticAngle);
         d = min(d, petersenPart(rotP));
     }
     
     return d;
+}
+
+// Simplified grid
+float simpleCyberGrid(vec2 p) {
+    float grid1 = abs(sin(p.x * 25.0)) * abs(sin(p.y * 25.0));
+    grid1 = smoothstep(0.95, 1.0, grid1);
+    
+    // Simple data flow lines
+    float dataLines = sin(p.x * 15.0 - gTime * 3.0);
+    dataLines = smoothstep(0.95, 1.0, dataLines);
+    
+    return grid1 * 0.6 + dataLines * 0.2;
+}
+
+// Simplified scanlines
+float balancedScanlines(vec2 p) {
+    return sin(p.y * 120.0) * 0.02 + 0.98;
 }
 
 void mainImage(out vec4 fragColor, in vec2 fragCoord) {
@@ -169,6 +255,10 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     // Simplified city lights
     float cityLights = pow(noise(p * 30.0), 8.0) * (1.0 - cityscape);
     col += cityLights * vec3(1.0, 0.5, 0.2) * 0.15;
+    
+    // Simplified grid
+    float grid = simpleCyberGrid(p);
+    col += grid * vec3(0.7, 0.0, 0.5) * 0.12;
     
     // Simplified distortion visualization
     float warpVis = length(warpedP - p) * 8.0;
@@ -205,19 +295,34 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     float solid = smoothstep(0.002, -0.002, d);
     vec3 fillColor = vec3(0.12, 0.02, 0.10);
     
-    // Simplified circuit pattern (removed complex pulse calculation)
+    // Simplified circuit pattern
     float circuit = step(0.7, noise(warpedP * 25.0));
     fillColor += circuit * vec3(0.3, 0.0, 0.2) * 0.2;
     
     col += solid * fillColor;
+    
+    // Reduced sparks intensity
+    float sparks = pow(noise(warpedP * 40.0 + gTime), 18.0) * 2.0;
+    col += sparks * vec3(1.0, 0.8, 0.2) * 0.2;
+    
+    // Simplified scanlines
+    col *= balancedScanlines(fragCoord);
+    
+    // Simplified vignette
+    float vignette = 1.0 - length(p) * 0.3;
+    col *= clamp(vignette, 0.0, 1.0);
+    
+    // Simplified color grading
+    col = pow(col, vec3(0.85));
+    col *= 1.4;
 
     fragColor = vec4(col, 1.0);
 }
 
 /** SHADERDATA
 {
-    "title": "Petersen Graph - Optimized Ripple Cyberpunk",
-    "description": "Performance optimized version with simplified effects",
+    "title": "Petersen Graph - Elastic Assembly Animation",
+    "description": "Parts elastically animate into position with 2/3 stable time",
     "model": "plane"
 }
 */
