@@ -14,6 +14,31 @@ vec2 polar(float r, float a) {
     return vec2(r * cos(a), r * sin(a));
 }
 
+// Enhanced noise function
+float noise(vec2 p) {
+    return fract(sin(dot(p, vec2(12.9898, 78.233))) * 43758.5453);
+}
+
+// Digital glitch effect
+vec2 digitalGlitch(vec2 p) {
+    float glitchStrength = sin(gTime * 3.0) * 0.5 + 0.5;
+    if(glitchStrength > 0.8) {
+        float glitchOffset = noise(vec2(floor(p.y * 20.0), gTime)) * 0.02;
+        p.x += glitchOffset * glitchStrength;
+    }
+    return p;
+}
+
+// Scanline effect
+float scanlines(vec2 p) {
+    return sin(p.y * 150.0 + gTime * 10.0) * 0.05 + 0.95;
+}
+
+// Neon glow effect
+float neonGlow(float d, float width, float intensity) {
+    return width / (abs(d) + width) * intensity;
+}
+
 // Fixed polygon distance field
 float sdPolygon(vec2 p, vec2 vertices[7], int n) {
     float d = dot(p - vertices[0], p - vertices[0]);
@@ -117,8 +142,8 @@ float petersenPart(vec2 p) {
 float petersenGraph(vec2 p) {
     float d = 1e6;
     
-    // Very slow rotation
-    p *= rot(gTime * 0.02);
+    // Rotation speed
+    p *= rot(gTime * 0.15);
     
     // 5-fold rotational symmetry
     for(int i = 0; i < 5; i++) {
@@ -134,28 +159,107 @@ void mainImage(out vec4 fragColor, in vec2 fragCoord) {
     vec2 p = (fragCoord.xy * 2.0 - iResolution.xy) / min(iResolution.x, iResolution.y);
 
     gTime = iTime;
+    
+    // Apply digital glitch effect
+    p = digitalGlitch(p);
 
     float d = petersenGraph(p);
 
-    // Start with purple background instead of black
-    vec3 col = vec3(0.25, 0.20, 0.45); // Purple base background
+    // Dark cyberpunk background
+    vec3 col = vec3(0.03, 0.02, 0.09); // Deep blue/purple
 
-    // Sharp edge lines
-    float edgeWidth = 0.01;
+    // Add dark cityscape atmosphere
+    float centerDist = length(p);
+    col += vec3(0.05, 0.0, 0.07) * (1.0 - centerDist * 0.5);
+    
+    // Digital grid
+    float grid = abs(sin(p.x * 30.0)) * abs(sin(p.y * 30.0));
+    grid = smoothstep(0.95, 1.0, grid);
+    col += grid * vec3(0.0, 0.6, 0.8) * 0.2; // Cyan grid
+    
+    // Digital rain effect (Matrix style)
+    float rain = noise(vec2(p.x * 5.0, p.y * 10.0 - gTime * 2.0));
+    rain = smoothstep(0.97, 1.0, rain);
+    col += rain * vec3(0.0, 1.0, 0.4) * 0.3; // Green digital rain
+    
+    // Multi-layered neon glow effect
+    float neonPink = neonGlow(d, 0.01, 2.0);
+    float neonCyan = neonGlow(d, 0.02, 1.0);
+    float neonBlue = neonGlow(d, 0.03, 0.5);
+    
+    col += neonPink * vec3(1.0, 0.0, 0.5); // Hot pink inner glow
+    col += neonCyan * vec3(0.0, 0.8, 1.0); // Cyan middle glow
+    col += neonBlue * vec3(0.2, 0.0, 0.8); // Blue outer glow
+    
+    // Chromatic aberration
+    for(int i = 0; i < 3; i++) {
+        float offset = float(i) * 0.002;
+        vec2 offsetP = p + vec2(offset, -offset * 0.5);
+        float offsetD = petersenGraph(offsetP);
+        
+        float edge = smoothstep(0.005, 0.0, abs(offsetD));
+        
+        // RGB separation
+        vec3 edgeColor = vec3(0.0);
+        if(i == 0) edgeColor.r = 1.0; // Red channel
+        else if(i == 1) edgeColor.g = 1.0; // Green channel
+        else edgeColor.b = 1.0; // Blue channel
+        
+        col += edge * edgeColor * 0.8;
+    }
+    
+    // Main edge with sharper cyberpunk look
+    float edgeWidth = 0.005;
     float edge = smoothstep(edgeWidth, 0.0, abs(d));
-    col += edge * vec3(1.0, 0.9, 0.6);
-
-    // Solid fill - slightly darker purple than background
-    float solid = smoothstep(0.005, -0.005, d);
-    col += solid * vec3(0.15, 0.10, 0.35);
+    col += edge * vec3(1.0, 0.9, 1.0) * 0.8; // Bright core
+    
+    // Solid fill with digital pattern
+    float solid = smoothstep(0.002, -0.002, d);
+    vec3 fillColor = vec3(0.15, 0.05, 0.25); // Dark purple fill
+    
+    // Add digital circuit pattern to fill
+    float circuitPattern = noise(p * 50.0 + gTime * 0.5);
+    circuitPattern = step(0.7, circuitPattern);
+    fillColor += circuitPattern * vec3(0.0, 0.3, 0.5) * 0.3; // Blue circuit traces
+    
+    col += solid * fillColor;
+    
+    // Electric sparks
+    float sparks = noise(p * 80.0 + gTime * 5.0);
+    sparks = step(0.98, sparks);
+    col += sparks * vec3(1.0, 0.8, 0.0) * 0.5; // Yellow electric sparks
+    
+    // Scanlines effect
+    col *= scanlines(fragCoord);
+    
+    // Digital noise overlay
+    float digitalNoise = noise(fragCoord + gTime * 10.0);
+    digitalNoise = step(0.98, digitalNoise);
+    col += digitalNoise * vec3(0.8, 0.8, 1.0) * 0.1; // White digital noise
+    
+    // Vignette effect
+    float vignette = 1.0 - centerDist * 0.5;
+    col *= vignette;
+    
+    // Occasional glitch flash
+    float glitchFlash = step(0.98, noise(vec2(gTime * 0.5)));
+    col = mix(col, vec3(1.0, 0.0, 0.5) * length(col), glitchFlash * 0.3);
+    
+    // Color enhancement for cyberpunk feel
+    col.r = pow(col.r, 0.8); // Enhance reds
+    col.b = pow(col.b, 0.9); // Slightly enhance blues
+    
+    // Final contrast enhancement
+    col = pow(col, vec3(0.8));
+    col *= 1.5;
 
     fragColor = vec4(col, 1.0);
 }
 
 /** SHADERDATA
 {
-    "title": "Petersen Graph - Pure 2D",
-    "description": "Clean 2D representation of Petersen Graph with edge and fill",
+    "title": "Petersen Graph - Cyberpunk Style",
+    "description": "Cyberpunk visualization with neon glow, digital artifacts, and urban dystopian aesthetic",
     "model": "plane"
 }
 */
